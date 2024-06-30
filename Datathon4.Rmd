@@ -1,0 +1,308 @@
+---
+title: "Mini-Datathon Individual Submission"
+author: "Tristan Grana"
+date: "10/22/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+#load all essential libraries (loading in more niche libraries later, for 
+#demonstration purposes)
+#load all datasets into objects
+#verify correct import using View()
+
+library(tidyverse)
+library(scales)
+library(plotly)
+library(dplyr)
+library(lubridate)
+
+key_crop_yields <- read_csv("key_crop_yields.csv")
+fertilizer <- read_csv("cereal_crop_yield_vs_fertilizer_application.csv")
+tractors <- read_csv("cereal_yields_vs_tractor_inputs_in_agriculture.csv")
+land_use <- read_csv("land_use_vs_yield_change_in_cereal_production.csv")
+arable_land <- read_csv("arable_land_pin.csv")
+
+#View(key_crop_yields)
+#(fertilizer)
+#view(tractors)
+#View(land_use)
+#View(arable_land)
+
+```
+
+## Total Crop Production since 1961 in North America
+
+Let's take a look at how much of each crop each North American country has produced since 1961. 
+
+```{r}
+library(reshape2)
+
+#Using the library reshape2, we will be able to use the melt() function, which will come in 
+#handy when we need to convert a matrix into a data frame in a way that allows us
+#to transpose it into a bar chart easily.  
+
+
+#Next, we will need to get a better look at the data we are dealing with, Let's
+#filter our key_crop_yields table to just look at North American countries. 
+#(note: greenland was not in the dataset and is thus excluded).
+
+north_america <- c("United States", "Canada", "Mexico")
+
+crop_yields <- key_crop_yields %>%
+  filter(Entity %in% north_america) 
+
+#Our dataset shows that Canada does not produce rice, and that neither Canada or 
+#the US produce Cassava or Cocoa Beans, so we will not be comparing these crops.
+
+##### WHEAT #####
+
+#First we will compare wheat production since 1961. We will create an object
+#filtering for each country, then use the summarize() function to sum up each
+#wheat column. We will then melt() it and use as.data.frame() to turn it into
+#a more workable table.
+
+us_Wheat <- key_crop_yields %>%
+  filter(Entity == "United States") %>%
+  summarize(us_total_wheat = sum(`Wheat (tonnes per hectare)`)) %>%
+  melt() %>%
+  as.data.frame()
+
+ca_Wheat <- key_crop_yields %>%
+  filter(Entity == "Canada") %>%
+  summarize(ca_total_wheat = sum(`Wheat (tonnes per hectare)`)) %>%
+  melt() %>%
+  as.data.frame()
+
+mx_Wheat <- key_crop_yields %>%
+  filter(Entity == "Mexico") %>%
+  summarize(mx_total_wheat = sum(`Wheat (tonnes per hectare)`)) %>%
+  melt() %>%
+  as.data.frame() 
+  
+#Now we can combine each row into a new object.
+
+wheat_NA <- rbind(us_Wheat, ca_Wheat, mx_Wheat)
+
+#Using scale_x_discrete() we can rename each column to reflect the correct country
+#it corresponds to.
+
+wheat_NA %>%
+  ggplot(aes(x = variable, y = value, fill = variable)) +
+  labs(x = "Country", y = "Tonnes of Wheat per Hectare", title  = "Total Wheat Yields in Tonnes per Hectare") + 
+  scale_y_continuous(n.breaks = 10) +
+  scale_x_discrete(labels=c("United States", "Canada", "Mexico")) +
+  geom_col(show.legend = FALSE)
+
+##### SOYBEANS #####
+
+#We will repeat the process for Soybeans.
+
+us_Soybean <- key_crop_yields %>%
+  filter(Entity == "United States") %>%
+  summarize(us_total_Soybean = sum(`Soybeans (tonnes per hectare)`)) %>%
+  melt() %>%
+  as.data.frame()
+
+ca_Soybean <- key_crop_yields %>%
+  filter(Entity == "Canada") %>%
+  summarize(ca_total_Soybean = sum(`Soybeans (tonnes per hectare)`)) %>%
+  melt() %>%
+  as.data.frame()
+
+mx_Soybean <- key_crop_yields %>%
+  filter(Entity == "Mexico") %>%
+  summarize(mx_total_Soybean = sum(`Soybeans (tonnes per hectare)`)) %>%
+  melt() %>%
+  as.data.frame() 
+  
+Soybean_NA <- rbind(us_Soybean, ca_Soybean, mx_Soybean)
+
+Soybean_NA %>%
+  ggplot(aes(x = variable, y = value, fill = variable)) +
+  labs(x = "Country", y = "Tonnes of Soybean per Hectare", title  = "Total Soybean Yields in Tonnes per Hectare") + 
+  scale_y_continuous(n.breaks = 10) +
+  scale_x_discrete(labels=c("United States", "Canada", "Mexico")) +
+  geom_col(show.legend = FALSE)
+
+```
+
+As demonstrated by the models above, since 1961, Mexico has produced almost double the amount of wheat than Canada. However, when it comes to soybean production, Canada has produced the most overall in North America, just slightly beating out the US.
+
+
+## Relationship between Fertilizer Use and Cereal Yield in North America
+
+```{r}
+library(lemon) 
+
+#First load in Lemon to give us access to facet_rep_wrap
+
+#Then, we will build a graph that shows us the relationship between fertilizer use and cereal yield.
+
+fertilizer %>%
+  filter(Year > 2002) %>%
+  ggplot(aes(y = `Cereal yield (tonnes per hectare)`, x = `Nitrogen fertilizer use (kilograms per hectare)`)) + 
+  labs(title = "Relationship Between Fertilizer Use and Cereal Yield in North America") +
+  scale_x_continuous(n.breaks = 10) +
+  scale_y_continuous(n.breaks = 10) +
+  geom_smooth()
+
+```
+
+
+Evidently, the relationship appears logarithmic and there are diminishing returns to fertilizer use. As fertilizer use approaches 300 kilograms per hectare, cereal yield stagnates at around 6.5 tonnes per hectare. This information could be incredibly useful for agrarians trying to find the most optimal balance of fertilizer needed to produce the most crops. 
+
+```{r}
+#Now, let's take a more broad look at the distribution of cereal yield for each country in North America since 1961.
+
+fertilizer %>%
+  filter(Entity %in% north_america) %>%
+  ggplot(aes(x = `Cereal yield (tonnes per hectare)`, fill = Entity)) +
+  labs(y = "Frequency", title = "Histogram of Cereal Yield in North America since 1961") +
+  geom_histogram() +
+  facet_rep_wrap(~Entity, repeat.tick.labels = TRUE)
+
+```
+
+Furthermore, there is a clear distribution curve present in each country with regard to cereal yield since 1961. Both Canada and Mexico tend to have Cereal yields concentrated around 2.5 tonnes per hectare (+/- 1 tonne), while cereal yields in the United States tends to be more evenly spread from 3.5 to 8.5
+
+
+## Relationship Between Tractors and Population
+
+As population continues to grow, our need for food increases proportionally. In order to produce that food, we need the right tools. One such tool is the tractor. In the following section we will take a look at how tractor use has grown with population. 
+
+```{r}
+#First, we will create an object that stores the yearly average amount of tractors around the world since 1961.
+
+Global_Tractors_mean_world <- tractors %>%
+  filter(Year != "NA" & `Tractors per 100 sq km arable land` != "NA" & `Total population (Gapminder)` != "NA" & Entity == "World") %>%
+  group_by(Year) %>%
+  summarize(GlobalTractorsPer100SqKm = mean(`Tractors per 100 sq km arable land`)) 
+
+#Then, we will create an object that stores the yearly average population around the world since 1961.
+
+Global_Population_mean_world <- tractors %>%
+  filter(Year != "NA" & `Tractors per 100 sq km arable land` != "NA" & `Total population (Gapminder)` != "NA" & Entity == "World") %>%
+  group_by(Year) %>%
+  summarize(GlobalPopulation = mean(`Total population (Gapminder)`)) 
+
+#We will repeat the process for the US, as a point of comparison.
+
+Global_Tractors_mean_US <- tractors %>%
+  filter(Year != "NA" & `Tractors per 100 sq km arable land` != "NA" & `Total population (Gapminder)` != "NA" & Entity == "United States") %>%
+  group_by(Year) %>%
+  summarize(GlobalTractorsPer100SqKm = mean(`Tractors per 100 sq km arable land`)) 
+
+Global_Population_mean_US <- tractors %>%
+  filter(Year != "NA" & `Tractors per 100 sq km arable land` != "NA" & `Total population (Gapminder)` != "NA" & Entity == "United States") %>%
+  group_by(Year) %>%
+  summarize(GlobalPopulation = mean(`Total population (Gapminder)`)) 
+
+
+#Now, we will use cbind() to combine each object. 
+
+Global_tractors_population_yearly_world <- cbind(Global_Tractors_mean_world, Global_Population_mean_world[,2])
+
+Global_tractors_population_yearly_US <- cbind(Global_Tractors_mean_US, Global_Population_mean_US[,2])
+
+#Then build our charts, making sure to show our trend line with geom_smooth(method = lm).
+
+tractors_vs_pop_world <- Global_tractors_population_yearly_world %>%
+  ggplot(aes(x = as.numeric(as.character(GlobalPopulation)), y = as.numeric(as.character(GlobalTractorsPer100SqKm)))) +
+  scale_x_continuous(n.breaks = 8, labels = comma_format()) + 
+  geom_line() +
+  labs(x = "Global Population", y = "Global Tractors per 100sq KM of Arable Land", title = "Global Amount of Tractors vs. Global Population") + 
+  geom_smooth(method = lm)
+
+ggplotly(tractors_vs_pop_world)
+
+tractors_vs_pop_US <- Global_tractors_population_yearly_US %>%
+  ggplot(aes(x = as.numeric(as.character(GlobalPopulation)), y = as.numeric(as.character(GlobalTractorsPer100SqKm)))) +
+  scale_x_continuous(n.breaks = 8, labels = comma_format()) + 
+  geom_line() +
+  labs(x = "US Population", y = "US Tractors per 100sq KM of Arable Land", title = "Amount of Tractors in the US vs. US Population") + 
+  geom_smooth(method = lm)
+
+ggplotly(tractors_vs_pop_US)
+
+```
+As demonstrated by the models above, the relationship between tractors and population is mostly linear. However, the leveling off towards the later years can possibly be explained by both the development and the ability to access better agriculture technology across the globe. This notion can be supported by observing the trend in the model comparing tractors and population in the US. If there are more people in a country to feed, shouldn't the amount of tractors have a directly linear relationship with population? The data in this model shows that the phenomenon of technological advancement produces an adverse effect. As we develop more efficient agricultural equipment, less of it is needed to perform the same function. 
+
+One could also argue that the globalization of the US economy could also contribute to this downward trend. As population has increased over time, we have become more reliant on importing crops rather than making them, thus producing this negative trend line.
+
+## Forecasting Global Arable Land Needed to Produce a Fixed Quantity of Crops Since 1961
+
+It is clear that as technology has advanced, so has our efficiency at producing crops. But just how much better have we gotten at making crops? And by how much will we improve in the coming years? In order to gain a better understanding of these issues, we will build a forecast model based on the average arable land needed to produce a fixed quantity of crops from every country since 1961. 
+
+```{r}
+
+library(forecast)
+
+#Bringing in the forecast library will give us access to more comprehensive 
+#forecasting tools
+
+#Make an object that we can store a manipulated variation of the arable_land
+#dataset in. This will make it easier to create our time series.
+
+#First rename columns, making them easier to work with. Then, group the 
+#data by year. Finally, use the summarize function to generate a column that
+#takes the average arable land needed ever year. This will give us our yearly
+#global average. This will make sure we have a univariate time series, allowing
+#us to turn our data into a time series.
+
+avg_arable_data <- arable_land %>%
+  rename(Arable_Land_Needed = `Arable land needed to produce a fixed quantity of crops ((1.0 = 1961))`) %>%
+  group_by(Year) %>%
+  summarize(avg_arable_land = mean(Arable_Land_Needed), .groups = 'drop')
+
+#verify that the data has been wrangled correctly and build a chart based on the data.
+
+avg_arable_chart <- avg_arable_data %>%
+  ggplot(aes(x = Year, y = avg_arable_land)) + 
+  labs(x = "Year", y = "Average Arable Land Decrease", title = "Global Decrease in Average Arable Land Needed Since 1961") +
+  scale_x_continuous(n.breaks = 15) + 
+  scale_y_continuous(n.breaks = 10) + 
+  geom_line()
+
+ggplotly(avg_arable_chart)
+
+#This line chart is good to give a first impression of the data, but it's not
+#quite enough, and we can definitely go deeper.
+
+#Now, we will create our time series based on the new object we just created.
+#The time series will reference all rows and the second column ([, 2]). It
+#will start on the first period of 1961 at a frequency of 1 (yearly).
+
+arable_ts <- ts(avg_arable_data[, 2], start = c(1961, 1), frequency = 1)
+
+#Then, we will run our time series through auto.arima (Autoregressive integrated
+#moving average) and put into a new object so that we can plug it into 
+#forecast()
+
+arima_arable <- auto.arima(arable_ts)
+
+#Using our new arima object, we will now generate a forecast 6 periods ahead.
+#Our frequency was 1 for each year, so we will forecast 6 years into
+#the future with h = 6.
+
+forecast_arable <- forecast(arima_arable, h = 6)
+
+forecast_arable
+
+#Because it interacts more favorably with forecast(), we will use R's standard 
+#plot function to graph this instead of ggplot. 
+
+plot(forecast_arable, xlab = "Years", ylab = "Arable Land Needed Since 1961", main = "Gobal Arable Land Needed to Produce a Fixed Quantity of Crops")
+
+#NOTE: 4 anomalous data points from Entity Qatar had to be removed from the data 
+#set because they were causing material errors in visualization.
+
+```
+Using this model, we can see that globally, the average amount of arable land needed to produce a fixed quantity of crops has decreased by almost 40% since 2016 around the globe. This is an average of about 0.72% decrease each year, gradually slowing as time progresses. According to this forecast model, we can make the assumption that from 2014 to 2020, the average amount of arable land needed to produce a fixed quantity of crops will decrease by another 1%.
+
+
